@@ -12,8 +12,7 @@ from pydantic import BaseModel, Field
 from starlette import status
 from starlette.responses import RedirectResponse
 
-from .auth import get_current_user, get_user_exception
-
+from .auth import get_current_user
 
 router = APIRouter(
     prefix="/todos",
@@ -36,16 +35,25 @@ def get_db():
 @router.get('/', response_class=HTMLResponse)
 async def read_all_by_user(request: Request,
                            db: Session = Depends(get_db)):
-    todos = db.query(models.Todos).filter(models.Todos.owner_id == 1).all()
+    user = await get_current_user(request)
+    if user is None:
+        return RedirectResponse(url='/auth', status_code=status.HTTP_302_FOUND)
+    todos = db.query(models.Todos).filter(models.Todos.owner_id == user.get('id')).all()
     return templates.TemplateResponse('home.html',
                                       {'request': request,
-                                       'todos': todos})
+                                       'todos': todos,
+                                       'user': user})
 
 
 @router.get('/add-todo', response_class=HTMLResponse)
 async def add_new_todo(request: Request):
+    # Firstly, make sure user login
+    user = await get_current_user(request)
+    if user is None:
+        return RedirectResponse(url='/auth', status_code=status.HTTP_302_FOUND)
+
     return templates.TemplateResponse('add-todo.html',
-                                      {'request': request})
+                                      {'request': request, 'user': user})
 
 
 @router.post('/add-todo', response_class=HTMLResponse)
@@ -54,12 +62,17 @@ async def create_todo(request: Request,
                       description: str = Form(...),
                       priority: int = Form(...),
                       db: Session = Depends(get_db)):
+    # Firstly, make sure user login
+    user = await get_current_user(request)
+    if user is None:
+        return RedirectResponse(url='/auth', status_code=status.HTTP_302_FOUND)
+
     todo_model = models.Todos()
     todo_model.title = title
     todo_model.description = description
     todo_model.priority = priority
     todo_model.complete = False
-    todo_model.owner_id = 1
+    todo_model.owner_id = user.get('id')
 
     db.add(todo_model)
     db.commit()
@@ -69,10 +82,16 @@ async def create_todo(request: Request,
 
 @router.get('/edit-todo/{todo_id}', response_class=HTMLResponse)
 async def edit_todo(request: Request, todo_id: int, db: Session = Depends(get_db)):
+    # Firstly, make sure user login
+    user = await get_current_user(request)
+    if user is None:
+        return RedirectResponse(url='/auth', status_code=status.HTTP_302_FOUND)
+
     todo = db.query(models.Todos).filter(models.Todos.id == todo_id).first()
     return templates.TemplateResponse('edit-todo.html',
                                       {'request': request,
-                                       'todo': todo})
+                                       'todo': todo,
+                                       'user': user})
 
 
 @router.post('/edit-todo/{todo_id}', response_class=HTMLResponse)
@@ -82,6 +101,11 @@ async def edit_todo_commit(request: Request,
                            description: str = Form(...),
                            priority: int = Form(...),
                            db: Session = Depends(get_db)):
+    # Firstly, make sure user login
+    user = await get_current_user(request)
+    if user is None:
+        return RedirectResponse(url='/auth', status_code=status.HTTP_302_FOUND)
+
     todo_model = db.query(models.Todos).filter(models.Todos.id == todo_id).first()
     todo_model.title = title
     todo_model.description = description
@@ -95,9 +119,14 @@ async def edit_todo_commit(request: Request,
 
 @router.get("/delete/{todo_id}")
 async def delete_todo(request: Request, todo_id: int, db: Session = Depends(get_db)):
+    # Firstly, make sure user login
+    user = await get_current_user(request)
+    if user is None:
+        return RedirectResponse(url='/auth', status_code=status.HTTP_302_FOUND)
+
     todo_model = db.query(models.Todos). \
                     filter(models.Todos.id == todo_id). \
-                    filter(models.Todos.owner_id == 1). \
+                    filter(models.Todos.owner_id == user.get('id')). \
                     first()
 
     if todo_model is None:
@@ -112,19 +141,13 @@ async def delete_todo(request: Request, todo_id: int, db: Session = Depends(get_
 
 @router.get('/complete/{todo_id}', response_class=HTMLResponse)
 async def complete_todo(request: Request, todo_id: int, db: Session = Depends(get_db)):
+    # Firstly, make sure user login
+    user = await get_current_user(request)
+    if user is None:
+        return RedirectResponse(url='/auth', status_code=status.HTTP_302_FOUND)
+
     todo = db.query(models.Todos).filter(models.Todos.id == todo_id).first()
     todo.complete = not todo.complete # T --> F; F --> T
     db.add(todo)
     db.commit()
     return RedirectResponse(url='/todos', status_code=status.HTTP_302_FOUND)
-
-
-
-
-
-
-
-
-
-
-

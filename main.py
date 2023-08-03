@@ -12,10 +12,13 @@ Step 4: Access to
 
 from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
+from starlette import status
+from starlette.responses import RedirectResponse
 
 import models
 from database import engine
 from routers import auth, todos
+
 
 app = FastAPI()
 
@@ -23,6 +26,10 @@ models.Base.metadata.create_all(bind=engine)
 
 # To import static directory
 app.mount('/static', StaticFiles(directory='static'), name='static')
+
+@app.get('/')  # at root, routing it to todos enpoint
+async def root():
+   return RedirectResponse(url='/todos', status_code=status.HTTP_302_FOUND)
 
 app.include_router(auth.router)
 app.include_router(todos.router)
