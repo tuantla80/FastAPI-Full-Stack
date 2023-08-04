@@ -6,7 +6,6 @@
 # test files
 test/
 
-todos.db
 
 # Node artifact files
 node_modules/
